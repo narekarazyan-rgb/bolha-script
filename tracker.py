@@ -14,6 +14,7 @@ logging.basicConfig(
 )
 
 TOPIC = os.getenv("NTFY_TOPIC") or getattr(config, "NTFY_TOPIC", None) or "bolha_secret_alerts_59231"
+GEMINI_KEY = os.getenv("GEMINI_API_KEY") or getattr(config, "GEMINI_API_KEY", None) or ""
 
 def load_seen_ids():
     if os.path.exists(config.STATE_FILE):
@@ -39,6 +40,40 @@ def parse_price(price_str):
     except ValueError:
         return 0.0
 
+def analyze_deal_with_ai(title, price, description):
+    """Анализирует объявление через Gemini 2.5 Flash API."""
+    if not GEMINI_KEY:
+        return "⚠️ ИИ отключен (не задан GEMINI_API_KEY в Secrets)"
+
+    prompt = (
+        f"Ты эксперт по перепродаже и ремонту техники в Словении. "
+        f"Оцени объявление с Bolha.com:\n"
+        f"Название: {title}\n"
+        f"Цена: {price} EUR\n"
+        f"Описание: {description}\n\n"
+        f"Дай предельно краткий вердикт в 2-3 строках:\n"
+        f"1. Вердикт: БРАТЬ / ДУМАТЬ / МУСОР\n"
+        f"2. Оценка выгоды/ремонта (стоит ли чинить или перепродавать, нет ли скрытого подвоха)."
+    )
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 150}
+    }
+
+    try:
+        resp = requests.post(url, json=payload, timeout=12)
+        if resp.status_code == 200:
+            data = resp.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        else:
+            logging.warning(f"Gemini API returned status {resp.status_code}: {resp.text}")
+            return "⚠️ Ошибка ответа AI API"
+    except Exception as e:
+        logging.error(f"AI Analysis failed: {e}")
+        return "⚠️ Таймаут/сбой AI анализа"
+
 def send_ntfy_push(title, message, url, tags):
     payload = {
         "topic": TOPIC,
@@ -51,9 +86,9 @@ def send_ntfy_push(title, message, url, tags):
     try:
         response = requests.post("https://ntfy.sh/", json=payload, timeout=10)
         response.raise_for_status()
-        logging.info(f"✅ УСПЕШНО ОТПРАВЛЕН ПУШ в топик '{TOPIC}': {title}")
+        logging.info(f"Push sent: {title}")
     except Exception as e:
-        logging.error(f"❌ ОШИБКА ОТПРАВКИ NTFY: {e}")
+        logging.error(f"Push failed: {e}")
 
 def process_item(item, seen_ids):
     title_elem = item.select_one("h3.entity-title a")
@@ -83,50 +118,38 @@ def process_item(item, seen_ids):
     location_elem = item.select_one("span.entity-pub-location")
     location = location_elem.text.strip() if location_elem else "Neznano"
 
-    # Фильтр по цене
     if not (config.MIN_PRICE <= price <= config.MAX_PRICE):
-        logging.info(f"  [ПРОПУСК: ЦЕНА] {price}€ вне диапазона ({config.MIN_PRICE}-{config.MAX_PRICE}€): {title[:40]}")
         return
 
     full_text = f"{title} {description}".lower()
 
-    # Фильтр по стоп-словам
+    # Проверка стоп-слов
     for stop_word in config.STOP_WORDS:
         if stop_word in full_text:
-            logging.info(f"  [ПРОПУСК: СТОП-СЛОВО '{stop_word}'] {title[:40]}")
             return
 
-    # Проверка триггеров
-    found_triggers = [word for word in config.POSITIVE_KEYWORDS if word in full_text]
+    # Проверка ключевых триггеров
+    found_triggers = [w for w in config.POSITIVE_KEYWORDS if w in full_text]
     
     if found_triggers:
-        logging.info(f"🔥 НАЙДЕНО СОВПАДЕНИЕ ({found_triggers}): {title} (€{price})")
+        logging.info(f"MATCH: {title} (€{price}) | Triggers: {found_triggers}")
+        
+        # Запрос к ИИ для валидации лота
+        ai_assessment = analyze_deal_with_ai(title, price, description)
+
         push_title = f"{title} — €{price}"
         push_message = (
-            f"📍 Lokacija: {location}\n"
-            f"🔥 Trigger: {', '.join(found_triggers)}\n"
-            f"📝 Opis: {description[:100]}..."
+            f"📍 {location}\n"
+            f"🎯 Триггеры: {', '.join(found_triggers)}\n\n"
+            f"🤖 ВЕРДИКТ ИИ:\n{ai_assessment}"
         )
-        send_ntfy_push(push_title, push_message, link, tags=["moneybag", "wrench"])
-    else:
-        logging.info(f"  [ПРОПУСК: НЕТ ТРИГГЕРОВ] {title[:40]}")
+        send_ntfy_push(push_title, push_message, link, tags=["robot", "wrench"])
 
 def main():
-    logging.info(f"Старт скрипта. Топик: {TOPIC}")
-    
-    # ТЕСТОВЫЙ ПУШ ПРИ СТАРТЕ ДЛЯ ПРОВЕРКИ СВЯЗИ
-    send_ntfy_push(
-        "Bolha Scraper запущен!", 
-        "Связь с GitHub Actions работает отлично.", 
-        "https://www.bolha.com", 
-        ["rocket"]
-    )
-
     seen_ids = load_seen_ids()
     new_items_found = False
 
     for url in config.TARGET_URLS:
-        logging.info(f"Scraping: {url}")
         for attempt in range(config.MAX_RETRIES):
             try:
                 response = requests.get(url, headers=config.HEADERS, timeout=config.TIMEOUT)
@@ -141,14 +164,11 @@ def main():
                 new_items_found = True
                 break
             except requests.exceptions.RequestException as e:
-                logging.warning(f"Error {url} (Attempt {attempt+1}): {e}")
                 time.sleep(3)
-                
         time.sleep(1)
 
     if new_items_found:
         save_seen_ids(seen_ids)
-        logging.info("Состояние базы сохранено.")
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,7 @@
 import os
 
 # Секретный топик Ntfy (можно задать через GitHub Secrets или поменять прямо здесь)
-NTFY_TOPIC = os.getenv("NTFY_TOPIC", "bolha_secret_alerts_59231")
+NTFY_TOPIC = os.getenv("NTFY_TOPIC") or "bolha_secret_alerts_59231"
 
 # Ссылки на категории Bolha.com (обязательно с параметром sort=new для свежих объявлений)
 TARGET_URLS = [
@@ -18,7 +18,7 @@ MAX_PRICE = 800.0
 POSITIVE_KEYWORDS = [
     "slaba baterija", "menjava baterije", "menjava stekla", "počeno steklo", 
     "praska", "brez polnilca", "ne prepozna diska", "potrebno očistiti",
-    "nujno", "ugodno", "zaradi neuporabe", "menjam", "hitro"
+    "nujno", "ugodno", "zaradi neuporabe", "menjam", "hitro", "prodam"
 ]
 
 # Стоп-слова (мусор, трупы, заблокированные устройства)

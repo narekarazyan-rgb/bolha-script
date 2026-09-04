@@ -23,7 +23,7 @@ POSITIVE_KEYWORDS = [
 
 # Стоп-слова (мусор, трупы, заблокированные устройства)
 STOP_WORDS = [
-    "zaklenjen", "icloud", "matična plošča", "zalit", "ne daje znakov", 
+    "zaklenjen", "matična plošča", "zalit", "ne daje znakov", 
     "za dele", "ponaredek", "replika", "fake", "kopija"
 ]
 

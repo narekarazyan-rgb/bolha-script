@@ -13,7 +13,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 
-# Защита от пустой строки в переменных окружения GitHub Actions
 TOPIC = os.getenv("NTFY_TOPIC") or getattr(config, "NTFY_TOPIC", None) or "bolha_secret_alerts_59231"
 
 def load_seen_ids():
@@ -26,7 +25,6 @@ def load_seen_ids():
     return set()
 
 def save_seen_ids(seen_ids):
-    # Сортировка предотвращает ложные коммиты из-за перемешивания хэшей
     ids_list = sorted(list(seen_ids))[-config.MAX_SEEN_IDS:]
     with open(config.STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(ids_list, f, indent=4)
@@ -53,9 +51,9 @@ def send_ntfy_push(title, message, url, tags):
     try:
         response = requests.post("https://ntfy.sh/", json=payload, timeout=10)
         response.raise_for_status()
-        logging.info(f"Push sent to topic '{TOPIC}': {title}")
+        logging.info(f"✅ УСПЕШНО ОТПРАВЛЕН ПУШ в топик '{TOPIC}': {title}")
     except Exception as e:
-        logging.error(f"Failed to send push: {e}")
+        logging.error(f"❌ ОШИБКА ОТПРАВКИ NTFY: {e}")
 
 def process_item(item, seen_ids):
     title_elem = item.select_one("h3.entity-title a")
@@ -85,20 +83,24 @@ def process_item(item, seen_ids):
     location_elem = item.select_one("span.entity-pub-location")
     location = location_elem.text.strip() if location_elem else "Neznano"
 
-    logging.info(f"Проверка лота: [{price}€] {title[:50]}")
-
+    # Фильтр по цене
     if not (config.MIN_PRICE <= price <= config.MAX_PRICE):
+        logging.info(f"  [ПРОПУСК: ЦЕНА] {price}€ вне диапазона ({config.MIN_PRICE}-{config.MAX_PRICE}€): {title[:40]}")
         return
 
     full_text = f"{title} {description}".lower()
 
-    if any(stop_word in full_text for stop_word in config.STOP_WORDS):
-        return
+    # Фильтр по стоп-словам
+    for stop_word in config.STOP_WORDS:
+        if stop_word in full_text:
+            logging.info(f"  [ПРОПУСК: СТОП-СЛОВО '{stop_word}'] {title[:40]}")
+            return
 
+    # Проверка триггеров
     found_triggers = [word for word in config.POSITIVE_KEYWORDS if word in full_text]
     
     if found_triggers:
-        logging.info(f"🔥 НАЙДЕНО СОВПАДЕНИЕ: {title} (€{price})")
+        logging.info(f"🔥 НАЙДЕНО СОВПАДЕНИЕ ({found_triggers}): {title} (€{price})")
         push_title = f"{title} — €{price}"
         push_message = (
             f"📍 Lokacija: {location}\n"
@@ -106,9 +108,20 @@ def process_item(item, seen_ids):
             f"📝 Opis: {description[:100]}..."
         )
         send_ntfy_push(push_title, push_message, link, tags=["moneybag", "wrench"])
+    else:
+        logging.info(f"  [ПРОПУСК: НЕТ ТРИГГЕРОВ] {title[:40]}")
 
 def main():
-    logging.info(f"Старт парсера. Используемый Ntfy топик: {TOPIC}")
+    logging.info(f"Старт скрипта. Топик: {TOPIC}")
+    
+    # ТЕСТОВЫЙ ПУШ ПРИ СТАРТЕ ДЛЯ ПРОВЕРКИ СВЯЗИ
+    send_ntfy_push(
+        "Bolha Scraper запущен!", 
+        "Связь с GitHub Actions работает отлично.", 
+        "https://www.bolha.com", 
+        ["rocket"]
+    )
+
     seen_ids = load_seen_ids()
     new_items_found = False
 

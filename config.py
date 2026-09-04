@@ -16,9 +16,9 @@ MAX_PRICE = 800.0
 
 # Триггеры для поиска (выгодные сделки, ремонт, срочность)
 POSITIVE_KEYWORDS = [
-    "slaba baterija", "menjava baterije", "menjava stekla", "počeno steklo", 
+    "prodam", "slaba baterija", "menjava baterije", "menjava stekla", "počeno steklo", 
     "praska", "brez polnilca", "ne prepozna diska", "potrebno očistiti",
-    "nujno", "ugodno", "zaradi neuporabe", "menjam", "hitro", "prodam"
+    "nujno", "ugodno", "zaradi neuporabe", "menjam", "hitro"
 ]
 
 # Стоп-слова (мусор, трупы, заблокированные устройства)

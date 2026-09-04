@@ -32,6 +32,7 @@ jobs:
       - name: Run Tracker Script
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python tracker.py
 
       - name: Commit and Push State (seen_ids.json)

@@ -5,9 +5,9 @@ NTFY_TOPIC = os.getenv("NTFY_TOPIC", "bolha_secret_alerts_59231")
 
 # Ссылки на категории Bolha.com (обязательно с параметром sort=new для свежих объявлений)
 TARGET_URLS = [
-    "https://www.bolha.com/telefoni-pametni?sort=new",
-    "https://www.bolha.com/prenosni-racunalniki?sort=new",
-    "https://www.bolha.com/igralne-konzole?sort=new"
+    "https://www.bolha.com/search/?keywords=telefon&sort=new",
+    "https://www.bolha.com/search/?keywords=prenosnik&sort=new",
+    "https://www.bolha.com/search/?keywords=playstation&sort=new"
 ]
 
 # Настройки цен в EUR

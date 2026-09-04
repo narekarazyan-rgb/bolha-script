@@ -1,41 +1,52 @@
 import os
 
-# Секретный топик Ntfy (можно задать через GitHub Secrets или поменять прямо здесь)
 NTFY_TOPIC = os.getenv("NTFY_TOPIC") or "bolha_secret_alerts_59231"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or ""
 
-# Ссылки на категории Bolha.com (обязательно с параметром sort=new для свежих объявлений)
+# Целевые поисковые категории (без мусора вроде мебели и одежды)
 TARGET_URLS = [
     "https://www.bolha.com/search/?keywords=iphone&sort=new",
     "https://www.bolha.com/search/?keywords=samsung+galaxy&sort=new",
-    "https://www.bolha.com/search/?keywords=playstation&sort=new"
+    "https://www.bolha.com/search/?keywords=prenosnik&sort=new",
+    "https://www.bolha.com/search/?keywords=playstation+5&sort=new",
+    "https://www.bolha.com/search/?keywords=rtx&sort=new"
 ]
 
-# Настройки цен в EUR
-MIN_PRICE = 15.0
-MAX_PRICE = 800.0
+MIN_PRICE = 20.0
+MAX_PRICE = 750.0
 
-# Триггеры для поиска (выгодные сделки, ремонт, срочность)
+# Боевые триггеры: дефекты, легкий ремонт, срочность, торг
 POSITIVE_KEYWORDS = [
-    "iphone", "slaba baterija", "menjava baterije", "menjava stekla", "počeno steklo", 
-    "praska", "brez polnilca", "ne prepozna diska", "potrebno očistiti",
-    "nujno", "ugodno", "zaradi neuporabe", "menjam", "hitro"
+    # Дефекты экрана и корпуса
+    "počeno steklo", "poceno steklo", "razbito steklo", "menjava stekla",
+    "praska", "praske", "menjan ekran", "menjava ekrana", "črta na zaslonu",
+    # Аккумулятор и питание
+    "slaba baterija", "slabša baterija", "menjava baterije", "brez polnilca", "brez adapterja",
+    # Проблемы софта/чистки/стиков
+    "potrebno očistiti", "potrebno ocistiti", "ne prepozna diska", "drift", "drifta",
+    # Срочная продажа и дисконт
+    "nujno", "ugodno", "zaradi neuporabe", "zaradi nakupa novega", "menjam za", 
+    "hitra prodaja", "ne rabim", "simbolična cena"
 ]
 
-# Стоп-слова (мусор, трупы, заблокированные устройства)
+# Стоп-слова: отсекаем перекупов, скупку, кирпичи и подделки
 STOP_WORDS = [
-    "zaklenjen", "matična plošča", "zalit", "ne daje znakov", 
-    "za dele", "ponaredek", "replika", "fake", "kopija"
+    # Скупка и реклама
+    "odkup", "odkupujem", "kupim", "iščem", "iscem",
+    # Невосстановимый брак / кирпичи
+    "zaklenjen icloud", "icloud zaklenjen", "zaklenjen na", "matična plošča", 
+    "maticna plosca", "zalit", "prišel v stik z vodo", "ne daje znakov", 
+    "za dele", "za kosov", "samo deli", "ne prižge", "ne prizge",
+    # Реплики и подделки
+    "ponaredek", "replika", "fake", "kopija"
 ]
 
-# Настройки сети
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Accept-Language": "sl-SI,sl;q=0.9,en-US;q=0.8,en;q=0.7"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "sl-SI,sl;q=0.9,en;q=0.8"
 }
 TIMEOUT = 15
 MAX_RETRIES = 3
-
-# Путь к файлу состояния
 STATE_FILE = "seen_ids.json"
-MAX_SEEN_IDS = 2000  # Защита от бесконечного разрастания JSON
+MAX_SEEN_IDS = 2500

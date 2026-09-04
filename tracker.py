@@ -8,7 +8,6 @@ import requests
 from bs4 import BeautifulSoup
 import config
 
-# Принудительный сброс буфера вывода для отображения всех строк в GitHub Actions
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
@@ -21,8 +20,6 @@ logging.basicConfig(
 
 TOPIC = os.getenv("NTFY_TOPIC") or getattr(config, "NTFY_TOPIC", None) or "bolha_secret_alerts_59231"
 GEMINI_KEY = os.getenv("GEMINI_API_KEY") or getattr(config, "GEMINI_API_KEY", None) or ""
-
-# Модель Gemini 3.6 Flash
 GEMINI_MODEL = "gemini-3.6-flash"
 
 def load_seen_ids():
@@ -50,38 +47,41 @@ def parse_price(price_str):
         return 0.0
 
 def analyze_deal_with_ai(title, price, description):
-    """Анализирует лот через Gemini 3.6 Flash API."""
+    """Оценка лота через Gemini 3.6 Flash без обрезки текста."""
     if not GEMINI_KEY:
-        return "⚠️ ИИ отключен (нет GEMINI_API_KEY в Secrets)"
+        return "⚠️ ИИ отключен (нет ключа GEMINI_API_KEY)"
 
     prompt = (
-        f"Ты эксперт по оценке и перепродаже техники в Словении. "
-        f"Проанализируй лот с классифайда Bolha.com:\n"
-        f"Название: {title}\n"
+        f"Ты эксперт по перепродаже и компонентному ремонту техники в Словении.\n"
+        f"Оцени объявление с Bolha.com:\n"
+        f"Товар: {title}\n"
         f"Цена: {price} EUR\n"
-        f"Описание: {description}\n\n"
-        f"Дай предельно емкий вердикт (максимум 2-3 строки):\n"
+        f"Описание продавца: {description}\n\n"
+        f"Дай емкий анализ на русском языке:\n"
         f"1. Вердикт: [БРАТЬ / ДУМАТЬ / МУСОР]\n"
-        f"2. Суть сделки: выгода, сложность ремонта, риски или скрытый брак."
+        f"2. Суть: выгода, примерная сложность/цена ремонта, риск скрытого брака, ликвидно ли на рынке Словении."
     )
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 200}
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 500
+        }
     }
 
     try:
-        resp = requests.post(url, json=payload, timeout=12)
+        resp = requests.post(url, json=payload, timeout=15)
         if resp.status_code == 200:
             data = resp.json()
             return data["candidates"][0]["content"]["parts"][0]["text"].strip()
         else:
-            logging.warning(f"Gemini API вернул код {resp.status_code}: {resp.text}")
-            return f"⚠️ Ошибка Gemini ({resp.status_code})"
+            logging.warning(f"Gemini вернул статус {resp.status_code}: {resp.text}")
+            return f"⚠️ Ошибка Gemini API ({resp.status_code})"
     except Exception as e:
-        logging.error(f"Сбой запроса к Gemini: {e}")
-        return "⚠️ Таймаут ответа ИИ"
+        logging.error(f"Сбой запроса к ИИ: {e}")
+        return "⚠️ Таймаут генерации ответа"
 
 def send_ntfy_push(title, message, url, tags):
     payload = {
@@ -95,28 +95,9 @@ def send_ntfy_push(title, message, url, tags):
     try:
         response = requests.post("https://ntfy.sh/", json=payload, timeout=10)
         response.raise_for_status()
-        logging.info(f"✅ Пуш успешно отправлен в Ntfy ({TOPIC}): {title}")
+        logging.info(f"✅ Пуш отправлен: {title}")
     except Exception as e:
-        logging.error(f"❌ Сбой отправки Ntfy: {e}")
-
-def run_self_check():
-    """Тест связки Gemini 3.6 Flash и Ntfy перед началом скрапинга."""
-    logging.info("=== Запуск диагностической самопроверки ===")
-    logging.info(f"Активный топик Ntfy: {TOPIC}")
-    logging.info(f"Ключ Gemini: {'Обнаружен' if GEMINI_KEY else 'ОТСУТСТВУЕТ'}")
-    
-    test_title = "Apple iPhone 13 128GB (Počeno steklo, deluje normalno)"
-    test_price = 140.0
-    test_desc = "Prodam iphone 13, padel na tla, poceno samo sprednje steklo. Touch dela, baterija 87%. Odjavljen iz icloud."
-    
-    logging.info(f"Отправка тестового запроса в {GEMINI_MODEL}...")
-    ai_verdict = analyze_deal_with_ai(test_title, test_price, test_desc)
-    logging.info(f"Ответ Gemini 3.6 Flash:\n{ai_verdict}")
-    
-    push_title = f"Тест ИИ: {test_title} — €{test_price}"
-    push_message = f"🤖 ВЕРДИКТ GEMINI 3.6 FLASH:\n{ai_verdict}"
-    send_ntfy_push(push_title, push_message, "https://www.bolha.com", ["white_check_mark", "robot"])
-    logging.info("=== Диагностика завершена. Переход к мониторингу Bolha ===")
+        logging.error(f"❌ Сбой пуша: {e}")
 
 def process_item(item, seen_ids):
     title_elem = item.select_one("h3.entity-title a")
@@ -158,23 +139,20 @@ def process_item(item, seen_ids):
     found_triggers = [w for w in config.POSITIVE_KEYWORDS if w in full_text]
     
     if found_triggers:
-        logging.info(f"🔥 НАЙДЕН ЦЕЛЕВОЙ ЛОТ: {title} (€{price}) | Триггеры: {found_triggers}")
+        logging.info(f"🔥 НАЙДЕН ЛОТ: {title} (€{price}) | Триггеры: {found_triggers}")
         
-        # Анализ через Gemini 3.6 Flash
-        ai_assessment = analyze_deal_with_ai(title, price, description)
+        # Получаем полный вердикт от Gemini 3.6 Flash
+        ai_verdict = analyze_deal_with_ai(title, price, description)
 
         push_title = f"{title} — €{price}"
         push_message = (
             f"📍 {location}\n"
             f"🎯 Триггер: {', '.join(found_triggers)}\n\n"
-            f"🤖 ВЕРДИКТ GEMINI 3.6 FLASH:\n{ai_assessment}"
+            f"🤖 ВЕРДИКТ GEMINI:\n{ai_verdict}"
         )
         send_ntfy_push(push_title, push_message, link, tags=["robot", "wrench"])
 
 def main():
-    # Запуск обязательной проверки связки ИИ + Push
-    run_self_check()
-
     seen_ids = load_seen_ids()
     new_items_found = False
 
@@ -194,13 +172,13 @@ def main():
                 new_items_found = True
                 break
             except requests.exceptions.RequestException as e:
-                logging.warning(f"Ошибка запроса {url} (попытка {attempt+1}): {e}")
+                logging.warning(f"Ошибка {url} (попытка {attempt+1}): {e}")
                 time.sleep(3)
         time.sleep(1)
 
     if new_items_found:
         save_seen_ids(seen_ids)
-        logging.info("База seen_ids.json обновлена.")
+        logging.info("База обновлена.")
 
 if __name__ == "__main__":
     main()

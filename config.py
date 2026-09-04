@@ -5,8 +5,8 @@ NTFY_TOPIC = os.getenv("NTFY_TOPIC") or "bolha_secret_alerts_59231"
 
 # Ссылки на категории Bolha.com (обязательно с параметром sort=new для свежих объявлений)
 TARGET_URLS = [
-    "https://www.bolha.com/search/?keywords=telefon&sort=new",
-    "https://www.bolha.com/search/?keywords=prenosnik&sort=new",
+    "https://www.bolha.com/search/?keywords=iphone&sort=new",
+    "https://www.bolha.com/search/?keywords=samsung+galaxy&sort=new",
     "https://www.bolha.com/search/?keywords=playstation&sort=new"
 ]
 
@@ -16,7 +16,7 @@ MAX_PRICE = 800.0
 
 # Триггеры для поиска (выгодные сделки, ремонт, срочность)
 POSITIVE_KEYWORDS = [
-    "garancija", "slaba baterija", "menjava baterije", "menjava stekla", "počeno steklo", 
+    "iphone", "slaba baterija", "menjava baterije", "menjava stekla", "počeno steklo", 
     "praska", "brez polnilca", "ne prepozna diska", "potrebno očistiti",
     "nujno", "ugodno", "zaradi neuporabe", "menjam", "hitro"
 ]
